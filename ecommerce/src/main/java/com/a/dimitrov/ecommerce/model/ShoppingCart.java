@@ -1,5 +1,10 @@
 package com.a.dimitrov.ecommerce.model;
+
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "shopping_cart")
@@ -13,21 +18,15 @@ public class ShoppingCart {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
-
-    @Column(name = "quantity")
-    private Integer quantity;
+    @OneToMany(mappedBy = "shoppingCart", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<ShoppingCartProducts> products = new ArrayList<>();
 
     public ShoppingCart() {
-
     }
 
-    public ShoppingCart(Long id, User user, Product product, Integer quantity) {
+    public ShoppingCart(User user) {
         this.user = user;
-        this.product = product;
-        this.quantity = quantity;
     }
 
     public Long getId() {
@@ -46,20 +45,22 @@ public class ShoppingCart {
         this.user = user;
     }
 
-    public Product getProduct() {
-        return product;
+    public List<ShoppingCartProducts> getProducts() {
+        return products;
     }
 
-    public void setProduct(Product product) {
-        this.product = product;
+    public void setProducts(List<ShoppingCartProducts> products) {
+        this.products = products;
     }
 
-    public Integer getQuantity() {
-        return quantity;
+    public void addProduct(ShoppingCartProducts item) {
+        products.add(item);
+        item.setShoppingCart(this);
     }
 
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
+    public void removeProduct(ShoppingCartProducts item) {
+        products.remove(item);
+        item.setShoppingCart(null);
     }
 
     @Override
@@ -67,8 +68,7 @@ public class ShoppingCart {
         return "ShoppingCart{" +
                 "id=" + id +
                 ", user=" + user +
-                ", product=" + product +
-                ", quantity=" + quantity +
+                ", products=" + products +
                 '}';
     }
 }

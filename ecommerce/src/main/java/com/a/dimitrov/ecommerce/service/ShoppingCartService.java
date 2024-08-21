@@ -1,16 +1,15 @@
 package com.a.dimitrov.ecommerce.service;
 
-import com.a.dimitrov.ecommerce.model.ShoppingCart;
-import com.a.dimitrov.ecommerce.model.User;
 import com.a.dimitrov.ecommerce.model.Product;
+import com.a.dimitrov.ecommerce.model.ShoppingCart;
+import com.a.dimitrov.ecommerce.model.ShoppingCartProducts;
+import com.a.dimitrov.ecommerce.model.User;
 import com.a.dimitrov.ecommerce.repository.ShoppingCartRepository;
-import com.a.dimitrov.ecommerce.repository.UserRepository;
 import com.a.dimitrov.ecommerce.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class ShoppingCartService {
@@ -22,66 +21,57 @@ public class ShoppingCartService {
     private ProductRepository productRepository;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService userService;
 
     public void addProductToCart(Long userId, Long productId, Integer quantity) {
-        Optional<User> optionalUser = userRepository.findById(userId);
-        Optional<Product> optionalProduct = productRepository.findById(productId);
+        User user = userService.findUserById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
-        if (optionalUser.isEmpty() || optionalProduct.isEmpty()) {
-            throw new IllegalArgumentException("User or Product not found");
-        }
+        ShoppingCart cart = shoppingCartRepository.findByUserId(userId).orElseGet(() -> {
+            ShoppingCart newCart = new ShoppingCart();
+            newCart.setUser(user);
+            return shoppingCartRepository.save(newCart);
+        });
 
-        User user = optionalUser.get();
-        Product product = optionalProduct.get();
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with ID: " + productId));
 
-        List<ShoppingCart> existingCartItems = shoppingCartRepository.findByUserId(userId);
+        ShoppingCartProducts cartProduct = cart.getProducts().stream()
+                .filter(p -> p.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElseGet(() -> new ShoppingCartProducts(cart, product, quantity));
 
-        boolean productFound = false;
+        cartProduct.setQuantity(cartProduct.getQuantity() + quantity);
+        cart.addProduct(cartProduct);
 
-        for (ShoppingCart item : existingCartItems) {
-            if (item.getProduct().getId().equals(productId)) {
-                item.setQuantity(item.getQuantity() + quantity);
-                shoppingCartRepository.save(item);
-                productFound = true;
-                break;
-            }
-        }
-
-        if (!productFound) {
-            ShoppingCart newCartItem = new ShoppingCart();
-            newCartItem.setUser(user);
-            newCartItem.setProduct(product);
-            newCartItem.setQuantity(quantity);
-            shoppingCartRepository.save(newCartItem);
-        }
+        shoppingCartRepository.save(cart);
     }
 
     public void removeProductFromCart(Long userId, Long productId) {
-        List<ShoppingCart> cartItems = shoppingCartRepository.findByUserId(userId);
+        ShoppingCart cart = shoppingCartRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Shopping cart not found"));
 
-        for (ShoppingCart item : cartItems) {
-            if (item.getProduct().getId().equals(productId)) {
-                shoppingCartRepository.delete(item);
-                break;
-            }
-        }
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+        cart.getProducts().removeIf(cartProduct -> cartProduct.getProduct().equals(product));
+
+        shoppingCartRepository.save(cart);
     }
 
     public double getTotalPrice(Long userId) {
-        List<ShoppingCart> cartItems = shoppingCartRepository.findByUserId(userId);
+        ShoppingCart cart = shoppingCartRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Shopping cart not found"));
 
-        double totalPrice = 0.0;
-
-        for (ShoppingCart item : cartItems) {
-            double itemTotalPrice = item.getProduct().getPrice() * item.getQuantity();
-            totalPrice += itemTotalPrice;
-        }
-
-        return totalPrice;
+        return cart.getProducts().stream()
+                .mapToDouble(cartProduct -> cartProduct.getProduct().getPrice() * cartProduct.getQuantity())
+                .sum();
     }
 
-    public List<ShoppingCart> getAllItemsInCart() {
-        return shoppingCartRepository.findAll();
+    public List<ShoppingCartProducts> getProductsInCart(Long userId) {
+        ShoppingCart cart = shoppingCartRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Shopping cart not found"));
+
+        return cart.getProducts();
     }
 }

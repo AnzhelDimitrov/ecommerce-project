@@ -1,6 +1,6 @@
 package com.a.dimitrov.ecommerce.controller;
 
-import com.a.dimitrov.ecommerce.model.ShoppingCart;
+import com.a.dimitrov.ecommerce.model.ShoppingCartProducts;
 import com.a.dimitrov.ecommerce.service.ShoppingCartService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -21,8 +21,8 @@ public class ShoppingCartController {
         return ResponseEntity.ok().build();
     }
 
-    @DeleteMapping("/remove")
-    public ResponseEntity<Void> removeProductFromCart(@RequestParam Long userId, @RequestParam Long productId) {
+    @DeleteMapping("/remove/{userId}/{productId}")
+    public ResponseEntity<Void> removeProductFromCart(@PathVariable Long userId, @PathVariable Long productId) {
         shoppingCartService.removeProductFromCart(userId, productId);
         return ResponseEntity.ok().build();
     }
@@ -33,9 +33,12 @@ public class ShoppingCartController {
         return ResponseEntity.ok(totalPrice);
     }
 
-    @GetMapping("/items")
-    public ResponseEntity<List<ShoppingCart>> getAllItemsInCart() {
-        List<ShoppingCart> items = shoppingCartService.getAllItemsInCart();
+    @GetMapping("/products/{userId}")
+    public ResponseEntity<List<ShoppingCartProducts>> getAllItemsInCart(@PathVariable Long userId) {
+        List<ShoppingCartProducts> items = shoppingCartService.getProductsInCart(userId);
+        if (items.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(items);
     }
 }
