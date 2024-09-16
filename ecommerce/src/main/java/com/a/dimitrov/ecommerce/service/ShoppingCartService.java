@@ -27,22 +27,29 @@ public class ShoppingCartService {
         User user = userService.findUserById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
-        ShoppingCart cart = shoppingCartRepository.findByUserId(userId).orElseGet(() -> {
-            ShoppingCart newCart = new ShoppingCart();
-            newCart.setUser(user);
-            return shoppingCartRepository.save(newCart);
-        });
+        ShoppingCart cart = shoppingCartRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    ShoppingCart newCart = new ShoppingCart();
+                    newCart.setUser(user);
+                    return shoppingCartRepository.save(newCart);
+                });
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with ID: " + productId));
 
-        ShoppingCartProducts cartProduct = cart.getProducts().stream()
-                .filter(p -> p.getProduct().getId().equals(productId))
-                .findFirst()
-                .orElseGet(() -> new ShoppingCartProducts(cart, product, quantity));
+        boolean found = false;
+        for (ShoppingCartProducts cartProduct : cart.getProducts()) {
+            if (cartProduct.getProduct().getId().equals(productId)) {
+                cartProduct.setQuantity(cartProduct.getQuantity() + quantity);
+                found = true;
+                break;
+            }
+        }
 
-        cartProduct.setQuantity(cartProduct.getQuantity() + quantity);
-        cart.addProduct(cartProduct);
+        if (!found) {
+            ShoppingCartProducts newCartProduct = new ShoppingCartProducts(cart, product, quantity);
+            cart.addProduct(newCartProduct);
+        }
 
         shoppingCartRepository.save(cart);
     }
@@ -54,7 +61,21 @@ public class ShoppingCartService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
 
-        cart.getProducts().removeIf(cartProduct -> cartProduct.getProduct().equals(product));
+        ShoppingCartProducts cartProductToRemove = null;
+        for (ShoppingCartProducts cartProduct : cart.getProducts()) {
+            if (cartProduct.getProduct().equals(product)) {
+                if (cartProduct.getQuantity() > 1) {
+                    cartProduct.setQuantity(cartProduct.getQuantity() - 1);
+                } else {
+                    cartProductToRemove = cartProduct;
+                }
+                break;
+            }
+        }
+
+        if (cartProductToRemove != null) {
+            cart.getProducts().remove(cartProductToRemove);
+        }
 
         shoppingCartRepository.save(cart);
     }
@@ -63,9 +84,12 @@ public class ShoppingCartService {
         ShoppingCart cart = shoppingCartRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Shopping cart not found"));
 
-        return cart.getProducts().stream()
-                .mapToDouble(cartProduct -> cartProduct.getProduct().getPrice() * cartProduct.getQuantity())
-                .sum();
+        double totalPrice = 0.0;
+        for (ShoppingCartProducts cartProduct : cart.getProducts()) {
+            totalPrice += cartProduct.getProduct().getPrice() * cartProduct.getQuantity();
+        }
+
+        return totalPrice;
     }
 
     public List<ShoppingCartProducts> getProductsInCart(Long userId) {
